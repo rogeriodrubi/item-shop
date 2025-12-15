@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404 # <-- Adicione estes imports
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from .models import Produto, Categoria, Pedido, ItemPedido, Transacao
+from .models import Produto, Categoria, Pedido, Transacao
 from django.contrib import messages 
+from django.core.exceptions import ValidationError
 
 def mercado(request, slug=None):
     produtos = Produto.objects.filter(esta_a_venda=True)
@@ -59,57 +60,14 @@ def toggle_venda(request, id):
 @login_required
 def comprar_produto(request, id):
     produto = get_object_or_404(Produto, id=id)
-    comprador = request.user.perfil
-    vendedor = produto.dono.perfil
-
-    # Validações de Segurança
-    if produto.dono == request.user:
-        messages.error(request, "Você não pode comprar seu próprio item!")
-        return redirect('mercado')
     
-    if not produto.esta_a_venda:
-        messages.error(request, "Este item não está mais à venda.")
+    try:
+        # Delega a lógica complexa para o Model (Fat Model)
+        produto.realizar_compra(request.user.perfil)
+        messages.success(request, f"Parabéns! Você comprou {produto.nome}.")
+        return redirect('inventario')
+        
+    except ValidationError as e:
+        # Captura erros de validação do model e exibe para o usuário
+        messages.error(request, e.message)
         return redirect('mercado')
-
-    if comprador.saldo < produto.preco:
-        messages.error(request, "Saldo insuficiente para esta compra.")
-        return redirect('mercado')
-
-    # --- A TRANSAÇÃO ---
-    # 1. Tira dinheiro do comprador
-    comprador.saldo -= produto.preco
-    comprador.save()
-
-    # 1.1 Registra a Transação de Saída (Extrato)
-    Transacao.objects.create(
-        perfil=comprador,
-        tipo='saida',
-        valor=produto.preco,
-        descricao=f"Compra de {produto.nome}"
-    )
-
-    # 2. Dá dinheiro ao vendedor
-    vendedor.saldo += produto.preco
-    vendedor.save()
-
-    # 2.1 Registra a Transação de Entrada (Extrato)
-    Transacao.objects.create(
-        perfil=vendedor,
-        tipo='entrada',
-        valor=produto.preco,
-        descricao=f"Venda de {produto.nome}"
-    )
-
-    # 3. Cria o Pedido e o Item (Recibo)
-    pedido = Pedido.objects.create(comprador=request.user, valor_total=produto.preco)
-    ItemPedido.objects.create(pedido=pedido, produto=produto, preco_na_compra=produto.preco)
-
-    # 3. Transfere a posse do item
-    produto.dono = request.user
-    produto.esta_a_venda = False  # Sai do mercado automaticamente
-    produto.publicado_em = None   # Reseta a data de publicação
-    produto.preco = None
-    produto.save()
-
-    messages.success(request, f"Parabéns! Você comprou {produto.nome}.")
-    return redirect('inventario')

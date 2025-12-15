@@ -63,21 +63,28 @@ class Command(BaseCommand):
 
             # 3. Criação de Itens (3 a 6 por usuário)
             # Cada usuário receberá uma quantidade aleatória de itens do jogo.
-            qtd_itens = random.randint(3, 6)
+            qtd_itens = random.randint(4, 7)
             # Escolhe itens aleatórios da lista definida sem repetição imediata na amostragem.
             itens_escolhidos = random.sample(itens_definidos, k=qtd_itens)
             
             for item_data in itens_escolhidos:
                 # Define status de venda (40% chance de estar à venda no mercado)
-                esta_a_venda = random.random() < 0.4
+                esta_a_venda = random.random() < 0.5
                 # Se estiver à venda, define a data de publicação como agora.
                 publicado_em = timezone.now() if esta_a_venda else None
+                
+                # Calcula o preço final: Preço Base + Taxa Fixa + Taxa Aleatória
+                preco_final = None
+                if esta_a_venda:
+                    taxa_fixa = 15.00  # Taxa fixa da loja
+                    taxa_aleatoria = random.uniform(1.0, 50.0) # Variação aleatória
+                    preco_final = item_data['preco'] + taxa_fixa + taxa_aleatoria
                 
                 produto = Produto.objects.create(
                     dono=user,
                     nome=item_data['nome'],
                     descricao=item_data['raridade'],
-                    preco=item_data['preco'],
+                    preco=preco_final,
                     categoria=item_data['categoria'],
                     raridade=item_data['raridade'],
                     esta_a_venda=esta_a_venda,

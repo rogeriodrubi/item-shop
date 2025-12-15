@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 # 3. Tabela de Categoria (Para organizar melhor que os choices fixos)
 class Categoria(models.Model):
@@ -62,6 +63,46 @@ class Produto(models.Model):
     def clean(self):
         if self.preco is not None and self.preco < 0:
             raise ValidationError("O preço do produto não pode ser negativo.")
+
+    @transaction.atomic
+    def realizar_compra(self, comprador_perfil):
+        """
+        Executa toda a lógica de negócio de uma compra:
+        Validação, Transação Financeira, Registro de Pedido e Transferência de Posse.
+        """
+        vendedor_perfil = self.dono.perfil
+
+        # 1. Validações
+        if self.dono == comprador_perfil.user:
+            raise ValidationError("Você não pode comprar seu próprio item!")
+        if not self.esta_a_venda:
+            raise ValidationError("Este item não está mais à venda.")
+        if comprador_perfil.saldo < self.preco:
+            raise ValidationError("Saldo insuficiente para esta compra.")
+
+        # 2. Movimentação Financeira
+        comprador_perfil.saldo -= self.preco
+        vendedor_perfil.saldo += self.preco
+        
+        comprador_perfil.save()
+        vendedor_perfil.save()
+
+        # 3. Registros de Histórico (Transações e Pedido)
+        # Importação local para evitar dependência circular se houver refatoração futura
+        from .models import Transacao, Pedido, ItemPedido 
+
+        Transacao.objects.create(perfil=comprador_perfil, tipo='saida', valor=self.preco, descricao=f"Compra de {self.nome}")
+        Transacao.objects.create(perfil=vendedor_perfil, tipo='entrada', valor=self.preco, descricao=f"Venda de {self.nome}")
+
+        pedido = Pedido.objects.create(comprador=comprador_perfil.user, valor_total=self.preco)
+        ItemPedido.objects.create(pedido=pedido, produto=self, preco_na_compra=self.preco)
+
+        # 4. Transferência de Posse
+        self.dono = comprador_perfil.user
+        self.esta_a_venda = False
+        self.publicado_em = None
+        self.preco = None
+        self.save()
     
     # ... (imports anteriores)
 
