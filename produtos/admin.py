@@ -8,10 +8,12 @@ class CategoriaAdmin(admin.ModelAdmin):
 
 @admin.register(Produto)
 class ProdutoAdmin(admin.ModelAdmin):
+    # Colunas que aparecem na lista de produtos
     list_display = ('nome', 'preco', 'dono', 'esta_a_venda', 'categoria')
     list_filter = ('esta_a_venda', 'categoria', 'raridade')
     search_fields = ('nome', 'descricao')
     
+    # Organização do formulário de edição em seções
     fieldsets = (
         ('Dados Básicos', {
             'fields': ('nome', 'descricao', 'imagem', 'dono')
@@ -26,12 +28,14 @@ class ProdutoAdmin(admin.ModelAdmin):
     )
 
 class ItemPedidoInline(admin.TabularInline):
+    """Permite editar itens do pedido dentro da tela do Pedido."""
     model = ItemPedido
     extra = 1
 
 @admin.register(Pedido)
 class PedidoAdmin(admin.ModelAdmin):
     list_display = ('id', 'comprador', 'data_pedido', 'valor_total')
+    # Adiciona a tabela de itens dentro do pedido
     inlines = [ItemPedidoInline]
 
 admin.site.register(Perfil)

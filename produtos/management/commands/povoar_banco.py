@@ -5,7 +5,8 @@ from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from django.utils import timezone
-from produtos.models import Produto
+from django.utils.text import slugify
+from produtos.models import Produto, Categoria
 
 class Command(BaseCommand):
     help = 'Povoa o banco de dados com itens específicos e imagens da pasta assets'
@@ -13,18 +14,19 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         self.stdout.write(self.style.WARNING('Iniciando processo de povoamento...'))
 
-        # 1. Limpeza: Remove usuários antigos exceto o admin
+        # ==============================================================================
+        # 1. LIMPEZA DO BANCO
+        # ==============================================================================
         # Isso garante que não tenhamos dados duplicados ou sujos ao rodar o script várias vezes.
         # O usuário 'admin' é preservado para não perder o acesso ao painel administrativo.
         count_deleted = User.objects.exclude(username='admin').delete()[0]
         self.stdout.write(self.style.SUCCESS(f'{count_deleted} usuários antigos removidos (admin preservado).'))
 
-        # Dados para geração
-        # Lista de nomes de personagens de RPG para criar os usuários fictícios.
+        # ==============================================================================
+        # 2. DEFINIÇÃO DE DADOS MOCK (Fictícios)
+        # ==============================================================================
         nomes_rpg = ["Aragorn", "Legolas", "Gimli", "Gandalf", "Frodo", "Sauron", "Bilbo"]
         
-        # Itens definidos com suas categorias e preços
-        # Dicionário contendo os metadados dos itens que serão criados.
         itens_definidos = [
             {"nome": "Poção de Vida Menor", "categoria": "variados", "raridade": "Common", "preco": 10.00},
             {"nome": "Espada Enferrujada", "categoria": "variados", "raridade": "Common", "preco": 50.00},
@@ -38,12 +40,41 @@ class Command(BaseCommand):
             {"nome": "Pedra Filosofal", "categoria": "variados", "raridade": "Legendary", "preco": 5000.00},
         ]
 
+        # --- Configuração de Categorias ---
+        self.stdout.write("Verificando categorias...")
+        icones = {
+            'machado': 'fa-hammer',
+            'cajado': 'fa-magic',
+            'armadura': 'fa-shield-alt',
+            'variados': 'fa-box',
+        }
+        CATEGORIA_CHOICES = [
+            ('machado', 'Machado'),
+            ('cajado', 'Cajado'),
+            ('armadura', 'Armadura'),
+            ('variados', 'Variados'),
+        ]
+        categorias_db = {}
+        for codigo, nome in CATEGORIA_CHOICES:
+            slug = slugify(nome)
+            cat_obj, _ = Categoria.objects.get_or_create(
+                slug=slug,
+                defaults={
+                    'nome': nome,
+                    'icone': icones.get(codigo, 'fa-tag'),
+                    'ativa': True
+                }
+            )
+            categorias_db[codigo] = cat_obj
+
         # Caminho absoluto para a pasta 'assets' na raiz do projeto, onde estão as imagens.
         assets_dir = os.path.join(settings.BASE_DIR, 'assets')
 
+        # ==============================================================================
+        # 3. GERAÇÃO DE USUÁRIOS E ITENS
+        # ==============================================================================
         for nome in nomes_rpg:
-            # 2. Criação de Usuário
-            # Verifica se o usuário já existe para evitar erros de integridade.
+            # --- Criação de Usuário ---
             if User.objects.filter(username=nome).exists():
                 self.stdout.write(f"Usuário {nome} já existe, pulando...")
                 continue
@@ -51,9 +82,7 @@ class Command(BaseCommand):
             # Cria o usuário com uma senha padrão.
             user = User.objects.create_user(username=nome, password='senha123')
             
-            # Atualiza o saldo do Perfil
-            # O perfil é criado automaticamente via Signals (post_save no models.py),
-            # então aqui apenas acessamos e atualizamos o saldo inicial.
+            # Atualiza o saldo do Perfil (criado via Signal)
             if hasattr(user, 'perfil'):
                 # Gera um saldo aleatório entre 5000 e 9000 para dar poder de compra aos bots.
                 user.perfil.saldo = round(random.uniform(5000.00, 9000.00), 2)
@@ -61,8 +90,7 @@ class Command(BaseCommand):
             
             self.stdout.write(f"Usuário '{nome}' criado. Saldo: R$ {user.perfil.saldo}")
 
-            # 3. Criação de Itens (3 a 6 por usuário)
-            # Cada usuário receberá uma quantidade aleatória de itens do jogo.
+            # --- Criação de Itens para este Usuário ---
             qtd_itens = random.randint(4, 7)
             # Escolhe itens aleatórios da lista definida sem repetição imediata na amostragem.
             itens_escolhidos = random.sample(itens_definidos, k=qtd_itens)
@@ -86,13 +114,14 @@ class Command(BaseCommand):
                     descricao=item_data['raridade'],
                     preco=preco_final,
                     categoria=item_data['categoria'],
+                    categoria_ref=categorias_db.get(item_data['categoria']),
                     raridade=item_data['raridade'],
                     esta_a_venda=esta_a_venda,
                     publicado_em=publicado_em,
                     visualizacoes=random.randint(0, 150) # Já inicia com views
                 )
                 
-                # Tenta carregar a imagem da pasta assets correspondente ao nome do item.
+                # --- Upload de Imagem ---
                 nome_arquivo = f"{item_data['nome']}.jpg"
                 caminho_imagem = os.path.join(assets_dir, nome_arquivo)
                 

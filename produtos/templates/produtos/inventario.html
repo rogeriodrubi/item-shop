@@ -209,7 +209,6 @@
               href="{% url 'inventario_por_categoria' cat.slug %}"
               class="btn btn-outline-primary rounded-pill {% if request.resolver_match.kwargs.slug == cat.slug %}active{% endif %}"
             >
-              {% if cat.icone %}<i class="{{ cat.icone }} me-1"></i>{% endif %}
               {{ cat.nome }}
             </a>
             {% endfor %}

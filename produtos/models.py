@@ -2,9 +2,15 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
-# 3. Tabela de Categoria (Para organizar melhor que os choices fixos)
+# ==============================================================================
+# MODELOS DE DOMÍNIO (CORE)
+# ==============================================================================
+
 class Categoria(models.Model):
+    """Representa as categorias de itens do sistema (ex: Armas, Poções)."""
     nome = models.CharField(max_length=50)
     slug = models.SlugField(unique=True, help_text="URL amigável (ex: armas)")
     icone = models.CharField(max_length=50, blank=True, help_text="Classe do ícone (ex: fa-hammer)")
@@ -15,6 +21,10 @@ class Categoria(models.Model):
         return self.nome
 
 class Produto(models.Model):
+    """
+    O item principal do jogo/loja.
+    Pode estar no inventário de um usuário ou à venda no mercado.
+    """
     dono = models.ForeignKey(User, on_delete=models.CASCADE, related_name='produtos')
     nome = models.CharField(max_length=100)
     descricao = models.TextField(blank=True, null=True)
@@ -52,6 +62,7 @@ class Produto(models.Model):
         return f"{self.nome} ({'VENDA' if self.esta_a_venda else 'INV'})"
     
     def get_icone_class(self):
+        """Retorna a classe CSS do FontAwesome baseada na categoria do item."""
         icones = {
             'machado': 'fa-hammer',
             'cajado': 'fa-magic',
@@ -61,14 +72,16 @@ class Produto(models.Model):
         return icones.get(self.categoria, 'fa-box')
     
     def clean(self):
+        """Validações de integridade do modelo antes de salvar."""
         if self.preco is not None and self.preco < 0:
             raise ValidationError("O preço do produto não pode ser negativo.")
 
     @transaction.atomic
     def realizar_compra(self, comprador_perfil):
         """
-        Executa toda a lógica de negócio de uma compra:
-        Validação, Transação Financeira, Registro de Pedido e Transferência de Posse.
+        Executa a lógica transacional de compra de um item.
+        Garante atomicidade: ou tudo acontece (débito, crédito, transferência),
+        ou nada acontece (rollback).
         """
         vendedor_perfil = self.dono.perfil
 
@@ -106,20 +119,23 @@ class Produto(models.Model):
     
     # ... (imports anteriores)
 
-# Adicione este modelo no final do arquivo
+# ==============================================================================
+# MODELOS DE USUÁRIO E PERFIL
+# ==============================================================================
+
 class Perfil(models.Model):
+    """Extensão do usuário padrão do Django para armazenar o Saldo (Carteira)."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
     saldo = models.DecimalField(max_digits=10, decimal_places=2, default=1000.00) # Começa com 1000 reais de bônus
 
     def __str__(self):
         return f"Perfil de {self.user.username} - R$ {self.saldo}"
 
-# --- Mágica para criar o perfil automaticamente quando cria o usuário ---
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+# --- Signals: Automação de criação de Perfil ---
 
 @receiver(post_save, sender=User)
 def criar_perfil_usuario(sender, instance, created, **kwargs):
+    """Cria um Perfil automaticamente sempre que um novo User é criado."""
     if created:
         Perfil.objects.create(user=instance)
 
@@ -129,7 +145,10 @@ def salvar_perfil_usuario(sender, instance, **kwargs):
     if hasattr(instance, 'perfil'):
         instance.perfil.save()
 
-# 4. Tabela de Transação (Extrato Financeiro)
+# ==============================================================================
+# MODELOS DE HISTÓRICO E TRANSAÇÕES
+# ==============================================================================
+
 class Transacao(models.Model):
     TIPO_CHOICES = [
         ('entrada', 'Entrada'),
@@ -144,7 +163,6 @@ class Transacao(models.Model):
     def __str__(self):
         return f"{self.tipo.upper()} - R$ {self.valor}"
 
-# 5. Tabela de Pedido (Histórico de Compras)
 class Pedido(models.Model):
     comprador = models.ForeignKey(User, on_delete=models.CASCADE, related_name='compras')
     data_pedido = models.DateTimeField(auto_now_add=True)
@@ -153,7 +171,6 @@ class Pedido(models.Model):
     def __str__(self):
         return f"Pedido #{self.id} - {self.comprador.username}"
 
-# 6. Tabela de Itens do Pedido
 class ItemPedido(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name='itens')
     produto = models.ForeignKey(Produto, on_delete=models.SET_NULL, null=True) # Se o produto for deletado, mantém o histórico
@@ -162,7 +179,6 @@ class ItemPedido(models.Model):
     def __str__(self):
         return f"Item do Pedido #{self.pedido.id}"
 
-# 7. Tabela de Avaliação (Feedback)
 class Avaliacao(models.Model):
     produto = models.ForeignKey(Produto, on_delete=models.CASCADE, related_name='avaliacoes')
     autor = models.ForeignKey(User, on_delete=models.CASCADE)
