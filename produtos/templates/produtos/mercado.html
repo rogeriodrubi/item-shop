@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+{% load humanize %}
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MarketRO - Loja</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Poppins", sans-serif;
+        background-color: #f8f9fa;
+      }
+      .navbar {
+        background-color: #1a237e; /* Azul Profundo */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .navbar-brand {
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .card-product {
+        border: none;
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        background-color: #343a40;
+        position: relative;
+        overflow: hidden;
+        min-height: 360px;
+      }
+      .card-product:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+      }
+      .bg-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        z-index: 0;
+      }
+      .bg-fallback {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #2c3e50, #4ca1af);
+        z-index: 0;
+      }
+      .card-overlay {
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgb(0, 0, 0));
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+      }
+      .card-product .card-body {
+        position: relative;
+        z-index: 2;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .text-shadow {
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+      }
+      .btn-buy {
+        background-color: #10b981; /* Verde Esmeralda */
+        border: none;
+        font-weight: 500;
+        color: white;
+      }
+      .btn-buy:hover {
+        background-color: #059669;
+        color: white;
+      }
+      .badge-price {
+        font-size: 0.9rem;
+        background-color: #e9ecef;
+        color: #1a237e;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+      <div class="container">
+        <a class="navbar-brand" href="{% url 'mercado' %}"
+          ><i class="fas fa-shopping-cart me-2"></i>MarketRO</a
+        >
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto align-items-center">
+            {% if user.is_authenticated %}
+            <li class="nav-item me-3">
+              <span class="badge bg-light text-dark p-2 shadow-sm"
+                ><i class="fas fa-wallet me-1 text-success"></i> R$
+                {{user.perfil.saldo|intcomma}}</span
+              >
+            </li>
+            <li class="nav-item me-3">
+              <span class="text-white-50">Olá, {{ user.username }}</span>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="{% url 'mercado' %}"
+                ><i class="fas fa-store me-1"></i> Mercado</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'inventario' %}"
+                ><i class="fas fa-backpack me-1"></i> Inventário</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'historico' %}"
+                ><i class="fas fa-history me-1"></i> Histórico</a
+              >
+            </li>
+            <li class="nav-item ms-2">
+              <form
+                action="{% url 'logout' %}?next={% url 'login' %}"
+                method="post"
+                class="d-inline"
+              >
+                {% csrf_token %}<button
+                  type="submit"
+                  class="btn btn-outline-danger btn-sm rounded-pill"
+                >
+                  <i class="fas fa-sign-out-alt"></i> Sair
+                </button>
+              </form>
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a
+                class="btn btn-light btn-sm rounded-pill fw-bold"
+                href="{% url 'login' %}"
+                ><i class="fas fa-key me-1"></i> Entrar</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="container mt-4">
+      {% for message in messages %}
+      <div
+        class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-sm"
+        role="alert"
+      >
+        {% if message.tags == 'error' %}<i
+          class="fas fa-exclamation-circle me-2"
+        ></i
+        >{% else %}<i class="fas fa-check-circle me-2"></i>{% endif %}
+        {{message}}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+          aria-label="Close"
+        ></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Content -->
+    <div class="container py-5">
+      <div class="row">
+        <!-- Lista de Produtos -->
+        <div class="col-12">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h2 class="fw-bold text-dark mb-0">Mercado Global</h2>
+              <p class="text-muted">Explore itens únicos de outros jogadores</p>
+            </div>
+            <span class="badge bg-primary rounded-pill"
+              >{{ produtos.count }} Itens</span
+            >
+          </div>
+
+          <div class="row row-cols-1 row-cols-md-3 row-cols-lg-4 g-4">
+            {% for produto in produtos %}
+            <div class="col">
+              <div class="card card-product shadow-sm h-100">
+                <!-- Imagem de Fundo -->
+                {% if produto.imagem %}
+                <div
+                  class="bg-image"
+                  style="background-image: url('{{ produto.imagem.url }}');"
+                ></div>
+                {% else %}
+                <div class="bg-fallback"></div>
+                {% endif %}
+
+                <!-- Overlay Escuro -->
+                <div class="card-overlay"></div>
+
+                <div class="card-body d-flex flex-column">
+                  <!-- Conteúdo -->
+                  <div class="mt-auto">
+                    <h6 class="card-title fw-bold text-white text-shadow mb-1">
+                      {{ produto.nome }}
+                    </h6>
+                    <p
+                      class="card-text text-white-50"
+                      style="font-size: 0.8rem"
+                    >
+                      {{ produto.descricao|truncatechars:60 }}
+                    </p>
+                  </div>
+
+                  <div
+                    class="d-flex justify-content-between align-items-center mb-3"
+                  >
+                    <span class="badge badge-price rounded-pill"
+                      >R$ {{ produto.preco|intcomma }}</span
+                    >
+                    <small class="text-white-50" style="font-size: 0.75rem"
+                      ><i class="fas fa-user me-1"></i
+                      >{{produto.dono.username}}</small
+                    >
+                  </div>
+                  {% if user.is_authenticated and produto.dono == user %}
+                  <button class="btn btn-secondary w-100 disabled" disabled>
+                    <i class="fas fa-user-check me-2"></i>Seu Item
+                  </button>
+                  {% else %}
+                  <form
+                    action="{% url 'comprar_produto' produto.id %}"
+                    method="post"
+                  >
+                    {% csrf_token %}<button
+                      type="submit"
+                      class="btn btn-buy w-100 shadow-sm"
+                    >
+                      <i class="fas fa-shopping-cart me-2"></i>Comprar
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5">
+              <div class="text-muted">
+                <i class="fas fa-box-open fa-4x mb-3"></i>
+                <h4>O mercado está vazio!</h4>
+                <p>Seja o primeiro a colocar algo à venda.</p>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

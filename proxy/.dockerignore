@@ -1,0 +1,7 @@
+.git
+README*.md
+Dockerfile
+conf/
+docker/
+services/
+passwd.plain.txt

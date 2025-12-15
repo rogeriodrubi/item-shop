@@ -1,0 +1,8 @@
+Em .env.dev e .env.prod
+	- substituir as referências ao e-mail jairsonrodrigues@gmail.com
+	- modificar a referência a SRC_DIR=
+
+Em todo o projeto
+	- modificar as referências a projetosd.com.br
+	- modificar as referências a projetosd
+	- modificar as referências a projetosd_db

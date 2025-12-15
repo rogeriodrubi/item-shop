@@ -1,0 +1,18 @@
+services:
+  projetosd_db:
+    ports:
+      - 15433:5432
+
+  pgadmin:
+    ports:
+      - "8081:80"
+    volumes:  # TODO to think about
+    - ./servers.json:/pgadmin4/servers.json
+
+  web:
+    volumes:
+      - .:/code
+    ports:
+      - "8080:8000"
+    extra_hosts:  # TODO to think about
+      - "projetosd.local:0.0.0.0"

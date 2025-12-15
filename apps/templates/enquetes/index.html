@@ -1,0 +1,20 @@
+<html>
+<head>
+	<title>Top 3 Perguntas Recentes</title>
+</head>
+<body>
+	<h1>Perguntas Recentes</h1>
+	
+	{% if perguntas_list %}
+	    <ul>
+	    {% for questao in perguntas_list %}
+	        <li><a href="{% url 'enquetes:detalhar' questao.id %}">{{ questao.texto_da_pergunta }}
+	        </a></li>
+	    {% endfor %}
+	    </ul>
+	{% else %}
+	    <p>Nenhuma pergunta disponível.</p>
+	{% endif %}
+
+	</body>
+</html>

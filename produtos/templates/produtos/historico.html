@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+{% load humanize %}
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Histórico - MarketRO</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Poppins", sans-serif;
+        background-color: #f8f9fa;
+      }
+      .navbar {
+        background-color: #1a237e;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .navbar-brand {
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .section-title {
+        border-left: 5px solid #1a237e;
+        padding-left: 15px;
+        margin-bottom: 20px;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+      <div class="container">
+        <a class="navbar-brand" href="{% url 'mercado' %}"
+          ><i class="fas fa-shopping-cart me-2"></i>MarketRO</a
+        >
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto align-items-center">
+            <li class="nav-item me-3">
+              <span class="badge bg-light text-dark p-2 shadow-sm"
+                ><i class="fas fa-wallet me-1 text-success"></i> R$
+                {{user.perfil.saldo|intcomma}}</span
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'mercado' %}"
+                ><i class="fas fa-store me-1"></i> Mercado</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'inventario' %}"
+                ><i class="fas fa-backpack me-1"></i> Inventário</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="{% url 'historico' %}"
+                ><i class="fas fa-history me-1"></i> Histórico</a
+              >
+            </li>
+            <li class="nav-item ms-2">
+              <form
+                action="{% url 'logout' %}?next={% url 'login' %}"
+                method="post"
+                class="d-inline"
+              >
+                {% csrf_token %}<button
+                  type="submit"
+                  class="btn btn-outline-danger btn-sm rounded-pill"
+                >
+                  <i class="fas fa-sign-out-alt"></i>
+                </button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container py-5">
+      <h2 class="mb-4 fw-bold">
+        <i class="fas fa-history me-2"></i>Histórico de Atividades
+      </h2>
+
+      <div class="row g-4">
+        <!-- Extrato Financeiro -->
+        <div class="col-lg-6">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white fw-bold py-3">
+              <i class="fas fa-file-invoice-dollar me-2 text-success"></i
+              >Extrato Financeiro
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Data</th>
+                      <th>Descrição</th>
+                      <th class="text-end">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for t in transacoes %}
+                    <tr>
+                      <td><small>{{ t.data|date:"d/m H:i" }}</small></td>
+                      <td>{{ t.descricao }}</td>
+                      <td
+                        class="text-end fw-bold {% if t.tipo == 'entrada' %}text-success{% else %}text-danger{% endif %}"
+                      >
+                        {% if t.tipo == 'entrada' %}+{% else %}-{% endif %} R$
+                        {{ t.valor|intcomma }}
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-3">
+                        Nenhuma transação encontrada.
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Histórico de Pedidos -->
+        <div class="col-lg-6">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white fw-bold py-3">
+              <i class="fas fa-shopping-bag me-2 text-primary"></i>Meus Pedidos
+            </div>
+            <div class="list-group list-group-flush">
+              {% for p in pedidos %}
+              <div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                  <h6 class="mb-1 fw-bold">Pedido #{{ p.id }}</h6>
+                  <small class="text-muted"
+                    >{{ p.data_pedido|date:"d/m/Y" }}</small
+                  >
+                </div>
+                <p class="mb-1 small">
+                  {% for item in p.itens.all %} {{ item.produto.nome }} (R$ {{
+                  item.preco_na_compra|intcomma }})<br />
+                  {% endfor %}
+                </p>
+                <small class="fw-bold text-primary"
+                  >Total: R$ {{ p.valor_total|intcomma }}</small
+                >
+              </div>
+              {% empty %}
+              <div class="text-center text-muted py-4">
+                Você ainda não fez compras.
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

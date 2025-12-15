@@ -1,0 +1,19 @@
+<html>
+<head>
+	<title>Resultado de Votação</title>
+</head>
+<body>
+	<h1>Resultados<h1>
+	<h2>{{ pergunta.texto_da_pergunta }}</h2>
+	
+	<ul>
+	{% for resposta in pergunta.resposta_set.all %}
+	    <li>({{ resposta.votos }} voto{{ resposta.votos|pluralize }}) 
+	    - {{ resposta.texto_da_resposta }}</li>
+	{% endfor %}
+	</ul>
+
+	<a href="{% url 'enquetes:detalhar' pergunta.id %}">Responder novamente?</a>
+
+	</body>
+</html>

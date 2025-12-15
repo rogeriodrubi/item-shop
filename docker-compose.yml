@@ -1,0 +1,144 @@
+secrets:
+  postgres_pass:
+    file: ${SECRETS_DIR}/postgres_pass
+  pgadmin_pass:
+    file: ${SECRETS_DIR}/pgadmin_pass
+  pgapp_pass:
+    file: ${SECRETS_DIR}/pgapp_pass
+  django_secret_key:
+    file: ${SECRETS_DIR}/django_secret_key
+  email_pass:
+    file: ${SECRETS_DIR}/email_pass
+
+services:
+  projetosd_db:
+    image: postgres:14.1-alpine
+    hostname: postgres
+    container_name: postgres
+    restart: always
+    volumes:
+      - ${PG_DIR}:/var/lib/postgresql/data
+      - ${BACKUP_DIR}:/backups
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_pass
+      - POSTGRES_DB=projetosd_db
+    secrets:
+      - postgres_pass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d projetosd_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  pgadmin:
+    image: dpage/pgadmin4:7.1
+    hostname: pgadmin
+    container_name: pgadmin
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL
+      - PGADMIN_DEFAULT_PASSWORD_FILE=/run/secrets/pgadmin_pass
+      - PGADMIN_CONFIG_CONSOLE_LOG_LEVEL=40
+    secrets:
+      - pgadmin_pass
+    depends_on:
+      - projetosd_db
+    volumes:
+      - ./servers.json:/pgadmin4/servers.json
+    networks:
+      - backend
+
+  web:
+    build: .
+    image: web
+    # COMANDO NOVO: Roda o servidor em modo desenvolvimento (mostra erros na tela)
+    command: python manage.py runserver 0.0.0.0:8000
+    hostname: web
+    container_name: web
+    restart: always
+    volumes:
+      - .:/code
+    ports:
+      - "3000:3000"
+      - "8000:8000" # PORTA NOVA: Essencial para você acessar
+    environment:
+      - DEBUG=1
+      - IS_PRODUCTION=0
+      - DB_HOST=projetosd_db
+      - PG_APP_USER
+      - PG_APP_PASSWORD_FILE=/run/secrets/pgapp_pass
+      - SECRET_KEY_FILE=/run/secrets/django_secret_key
+      - EMAIL_HOST_USER
+      - DEFAULT_FROM_EMAIL
+      - EMAIL_HOST_PASSWORD_FILE=/run/secrets/email_pass
+      - PYDEVD_DISABLE_FILE_VALIDATION=1
+    secrets:
+      - pgapp_pass
+      - django_secret_key
+      - email_pass
+    networks:
+      - backend
+    depends_on:
+      projetosd_db:
+        condition: service_healthy
+
+  ssl:
+    build: ssl/
+    image: ssl
+    hostname: ssl
+    container_name: ssl
+    restart: always
+    environment:
+      - DOMAIN_NAME
+      - SSL_ENV=${ENV_NAME}
+      - SSL_SUBDOMAINS=www,adm,api,status
+      - SSL_ACCOUNT_EMAIL
+      - SSL_CA_DOMAIN
+      - SSL_RELOAD_CMD
+      - SSL_NOTIFIER_ADDRESS
+      - SSL_NOTIFIER_USERNAME
+      - SSL_NOTIFIER_PASSWORD
+      - NOTIFICATION_MAIL_TARGET
+    volumes:
+      - "${SSL_DIR}/certs:/data/ssl"
+      - "${SSL_DIR}/getssl:/root/.getssl"
+      - "${SSL_DIR}/acme-challenge:/data/acme-challenge"
+
+  proxy:
+    build: proxy/
+    image: proxy
+    hostname: proxy
+    container_name: proxy
+    restart: always
+    environment:
+      - NG_ENV=${ENV_NAME}
+      - NG_TPL_AUTH_NAME=projetosd
+      - NG_TPL_MAIN_DOMAIN=${DOMAIN_NAME}
+      - NG_TPL_WEB_DOMAINS=${DOMAIN_NAME} www.${DOMAIN_NAME}
+      - NG_TPL_ADM_DOMAIN=adm.${DOMAIN_NAME}
+      - NG_TPL_API_DOMAIN=api.${DOMAIN_NAME}
+      - NG_TPL_STATUS_DOMAIN=status.${DOMAIN_NAME}
+      - NG_TPL_WEB_HOST=web:8000
+      - NG_TPL_ADM_HOST=pgadmin:80
+      - NG_TPL_API_HOST=api:80
+      - NG_TPL_STATUS_HOST=web:80
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+      - backend
+    tmpfs: # docker compose only (docker stack ignores it)
+      - /data/cache/assets:size=32M,mode=770,uid=101,gid=101
+    volumes:
+      - "${SSL_DIR}/certs:/certs:ro"
+      - "${SSL_DIR}/acme-challenge:/usr/share/nginx/html/.well-known/acme-challenge:ro"
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
